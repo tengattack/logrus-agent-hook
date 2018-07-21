@@ -31,7 +31,7 @@ Then, it becomes:
 ``` json
 {
   "@timestamp": "2018-07-21T14:34:42+09:00",
-    "@version": 1,
+    "@version": "1",
       "app_id": "foo",
        "level": "INFO",
      "message": "Hello World!"
