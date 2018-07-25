@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -20,6 +19,11 @@ type Hook struct {
 	writer    io.Writer
 	formatter logrus.Formatter
 }
+
+const (
+	// TimeFormat is the default @timestamp format, add millisecounds to time.RFC3339
+	TimeFormat = "2006-01-02T15:04:05.999Z07:00"
+)
 
 // New returns a new logrus.Hook for Logstash.
 //
@@ -157,7 +161,7 @@ func (f *LogAgentFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	}
 
 	// defaultTimestampFormat
-	data[FieldKeyTime] = entry.Time.Format(time.RFC3339)
+	data[FieldKeyTime] = entry.Time.Format(TimeFormat)
 	data[FieldKeyLevel] = getLevelString(entry.Level)
 	data[FieldKeyMsg] = entry.Message
 
