@@ -1,6 +1,7 @@
 package logrusagent
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -93,6 +94,7 @@ func releaseEntry(e *logrus.Entry) {
 type LogAgentFormatter struct {
 	logrus.FieldMap
 	logrus.Fields
+	QuoteEmptyFields bool
 }
 
 // fields
@@ -149,21 +151,42 @@ func DefaultFormatter(fields logrus.Fields) logrus.Formatter {
 func (f *LogAgentFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	entry := copyEntry(e, f.Fields)
 	data := make(logrus.Fields, len(entry.Data)+3)
+	extras := make(logrus.Fields)
 	for k, v := range entry.Data {
-		switch v := v.(type) {
-		case error:
-			// Otherwise errors are ignored by `encoding/json`
-			// https://github.com/sirupsen/logrus/issues/137
-			data[k] = v.Error()
-		default:
-			data[k] = v
+		if _, ok := f.Fields[k]; ok {
+			switch v := v.(type) {
+			case error:
+				// Otherwise errors are ignored by `encoding/json`
+				// https://github.com/sirupsen/logrus/issues/137
+				data[k] = v.Error()
+			default:
+				data[k] = v
+			}
+		} else {
+			// extras fields
+			switch v := v.(type) {
+			case error:
+				extras[k] = v.Error()
+			default:
+				extras[k] = v
+			}
 		}
 	}
 
 	// defaultTimestampFormat
 	data[FieldKeyTime] = entry.Time.Format(TimeFormat)
 	data[FieldKeyLevel] = getLevelString(entry.Level)
-	data[FieldKeyMsg] = entry.Message
+	// message
+	if len(extras) > 0 {
+		b := &bytes.Buffer{}
+		b.WriteString(entry.Message)
+		for k, v := range extras {
+			f.appendKeyValue(b, k, v)
+		}
+		data[FieldKeyMsg] = b.String()
+	} else {
+		data[FieldKeyMsg] = entry.Message
+	}
 
 	serialized, err := json.Marshal(data)
 	if err != nil {
@@ -172,4 +195,41 @@ func (f *LogAgentFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	dataBytes := append(serialized, '\n')
 	releaseEntry(entry)
 	return dataBytes, nil
+}
+
+func (f *LogAgentFormatter) needsQuoting(text string) bool {
+	if f.QuoteEmptyFields && len(text) == 0 {
+		return true
+	}
+	for _, ch := range text {
+		if !((ch >= 'a' && ch <= 'z') ||
+			(ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') ||
+			ch == '-' || ch == '.' || ch == '_' || ch == '/' || ch == '@' || ch == '^' || ch == '+') {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *LogAgentFormatter) appendKeyValue(b *bytes.Buffer, key string, value interface{}) {
+	if b.Len() > 0 {
+		b.WriteByte(' ')
+	}
+	b.WriteString(key)
+	b.WriteByte('=')
+	f.appendValue(b, value)
+}
+
+func (f *LogAgentFormatter) appendValue(b *bytes.Buffer, value interface{}) {
+	stringVal, ok := value.(string)
+	if !ok {
+		stringVal = fmt.Sprint(value)
+	}
+
+	if !f.needsQuoting(stringVal) {
+		b.WriteString(stringVal)
+	} else {
+		b.WriteString(fmt.Sprintf("%q", stringVal))
+	}
 }
