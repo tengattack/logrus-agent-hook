@@ -46,7 +46,8 @@ func TestDefaultFormatterWithEmptyFields(t *testing.T) {
 		Level:   logrus.DebugLevel,
 		Time:    now,
 		Data: logrus.Fields{
-			"Key1": "Value1",
+			"category": "test",
+			"Key1":     "Value1",
 		},
 	}
 
@@ -58,6 +59,7 @@ func TestDefaultFormatterWithEmptyFields(t *testing.T) {
 	expected := []string{
 		"\"message\":\"message bla bla Key1=Value1\"",
 		"\"level\":\"DEBUG\"",
+		"\"category\":\"test\"",
 		"\"@version\":\"1\"",
 		fmt.Sprintf("\"@timestamp\":\"%s\"", now.Format(logrusagent.TimeFormat)),
 	}

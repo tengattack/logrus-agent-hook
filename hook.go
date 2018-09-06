@@ -153,7 +153,7 @@ func (f *LogAgentFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	data := make(logrus.Fields, len(entry.Data)+3)
 	extras := make(logrus.Fields)
 	for k, v := range entry.Data {
-		if _, ok := f.Fields[k]; ok {
+		if _, ok := f.Fields[k]; ok || k == "category" {
 			switch v := v.(type) {
 			case error:
 				// Otherwise errors are ignored by `encoding/json`
