@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -95,13 +96,15 @@ type LogAgentFormatter struct {
 	logrus.FieldMap
 	logrus.Fields
 	QuoteEmptyFields bool
+	DisableSorting   bool
 }
 
 // fields
 const (
-	FieldKeyTime  = "@timestamp"
-	FieldKeyMsg   = "message"
-	FieldKeyLevel = "level"
+	FieldKeyTime     = "@timestamp"
+	FieldKeyMsg      = "message"
+	FieldKeyLevel    = "level"
+	FieldKeyCategory = "category"
 )
 
 var (
@@ -150,10 +153,11 @@ func DefaultFormatter(fields logrus.Fields) logrus.Formatter {
 // Note: the given entry is copied and not changed during the formatting process.
 func (f *LogAgentFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	entry := copyEntry(e, f.Fields)
-	data := make(logrus.Fields, len(entry.Data)+3)
+	defer releaseEntry(entry)
+	data := make(logrus.Fields, len(entry.Data)+4)
 	extras := make(logrus.Fields)
 	for k, v := range entry.Data {
-		if _, ok := f.Fields[k]; ok || k == "category" {
+		if _, ok := f.Fields[k]; ok || k == FieldKeyCategory {
 			switch v := v.(type) {
 			case error:
 				// Otherwise errors are ignored by `encoding/json`
@@ -174,14 +178,26 @@ func (f *LogAgentFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	}
 
 	// defaultTimestampFormat
-	data[FieldKeyTime] = entry.Time.Format(TimeFormat)
+	data[FieldKeyTime] = entry.Time.UTC().Format(TimeFormat)
 	data[FieldKeyLevel] = getLevelString(entry.Level)
 	// message
 	if len(extras) > 0 {
 		b := &bytes.Buffer{}
 		b.WriteString(entry.Message)
-		for k, v := range extras {
-			f.appendKeyValue(b, k, v)
+
+		if !f.DisableSorting {
+			extraKeys := make([]string, 0, len(extras))
+			for k := range extras {
+				extraKeys = append(extraKeys, k)
+			}
+			sort.Strings(extraKeys)
+			for _, k := range extraKeys {
+				f.appendKeyValue(b, k, extras[k])
+			}
+		} else {
+			for k, v := range extras {
+				f.appendKeyValue(b, k, v)
+			}
 		}
 		data[FieldKeyMsg] = b.String()
 	} else {
@@ -193,7 +209,6 @@ func (f *LogAgentFormatter) Format(e *logrus.Entry) ([]byte, error) {
 		return nil, fmt.Errorf("Failed to marshal fields to JSON, %v", err)
 	}
 	dataBytes := append(serialized, '\n')
-	releaseEntry(entry)
 	return dataBytes, nil
 }
 

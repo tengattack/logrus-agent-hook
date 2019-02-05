@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tengattack/logrus-agent-hook"
+	logrusagent "github.com/tengattack/logrus-agent-hook"
 )
 
 type simpleFmter struct{}
@@ -48,6 +48,7 @@ func TestDefaultFormatterWithEmptyFields(t *testing.T) {
 		Data: logrus.Fields{
 			"category": "test",
 			"Key1":     "Value1",
+			"Key2":     "Value2",
 		},
 	}
 
@@ -57,11 +58,11 @@ func TestDefaultFormatterWithEmptyFields(t *testing.T) {
 	}
 
 	expected := []string{
-		"\"message\":\"message bla bla Key1=Value1\"",
+		"\"message\":\"message bla bla Key1=Value1 Key2=Value2\"",
 		"\"level\":\"DEBUG\"",
 		"\"category\":\"test\"",
 		"\"@version\":\"1\"",
-		fmt.Sprintf("\"@timestamp\":\"%s\"", now.Format(logrusagent.TimeFormat)),
+		fmt.Sprintf("\"@timestamp\":\"%s\"", now.UTC().Format(logrusagent.TimeFormat)),
 	}
 
 	for _, exp := range expected {
