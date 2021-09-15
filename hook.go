@@ -34,7 +34,7 @@ const (
 // To create a new hook that sends logs to `tcp://logstash.corp.io:9999`:
 //
 // conn, _ := net.Dial("tcp", "logstash.corp.io:9999")
-// hook := logrustash.New(conn, logrustash.DefaultFormatter())
+// hook, _ := logrustash.New(conn, logrustash.DefaultFormatter())
 func New(w io.Writer, f logrus.Formatter) (logrus.Hook, func()) {
 	return NewWithChannelSize(w, f, 1024)
 }
@@ -45,14 +45,14 @@ func NewWithChannelSize(w io.Writer, f logrus.Formatter, chanSize int) (logrus.H
 		panic("chanSize shouldn't be zero")
 	}
 
-	hook := &Hook{
+	hook := Hook{
 		writer:    w,
 		formatter: f,
 		channel:   make(chan []byte, chanSize),
 		stopChan:  make(chan struct{}, 1),
 	}
 
-	go subWriter(*hook)
+	go subWriter(hook)
 	return hook, func() {
 		close(hook.stopChan)
 		close(hook.channel)
