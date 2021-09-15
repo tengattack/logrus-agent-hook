@@ -20,6 +20,8 @@ import (
 type Hook struct {
 	writer    io.Writer
 	formatter logrus.Formatter
+	channel   chan []byte
+	stopChan  chan struct{}
 }
 
 const (
@@ -33,10 +35,44 @@ const (
 //
 // conn, _ := net.Dial("tcp", "logstash.corp.io:9999")
 // hook := logrustash.New(conn, logrustash.DefaultFormatter())
-func New(w io.Writer, f logrus.Formatter) logrus.Hook {
-	return Hook{
+func New(w io.Writer, f logrus.Formatter) (logrus.Hook, func()) {
+	return NewWithChannelSize(w, f, 1024)
+}
+
+// NewWithChannelSize returns a new logrus.Hook with specified channel size
+func NewWithChannelSize(w io.Writer, f logrus.Formatter, chanSize int) (logrus.Hook, func()) {
+	if chanSize <= 0 {
+		panic("chanSize shouldn't be zero")
+	}
+
+	hook := &Hook{
 		writer:    w,
 		formatter: f,
+		channel:   make(chan []byte, chanSize),
+		stopChan:  make(chan struct{}, 1),
+	}
+
+	go subWriter(*hook)
+	return hook, func() {
+		close(hook.stopChan)
+		close(hook.channel)
+	}
+}
+
+func subWriter(h Hook) {
+	for {
+		select {
+		case data, ok := <-h.channel:
+			if !ok {
+				return
+			}
+			_, err := h.writer.Write(data)
+			if err != nil {
+				// PASS
+			}
+		case <-h.stopChan:
+			return
+		}
 	}
 }
 
@@ -48,7 +84,8 @@ func (h Hook) Fire(e *logrus.Entry) error {
 	if err != nil {
 		return err
 	}
-	_, err = h.writer.Write(dataBytes)
+	// write data into channel
+	h.channel <- dataBytes
 	return err
 }
 
