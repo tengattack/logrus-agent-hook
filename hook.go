@@ -87,6 +87,7 @@ func subWriter(h Hook) {
 func (h Hook) Fire(e *logrus.Entry) error {
 	// write data into channel
 	e2 := e.Dup()
+	e2.Level = e.Level
 	e2.Message = e.Message
 	h.channel <- e2
 	return nil
@@ -112,7 +113,7 @@ func copyEntry(e *logrus.Entry, fields logrus.Fields) *logrus.Entry {
 	ne.Message = e.Message
 	ne.Level = e.Level
 	ne.Time = e.Time
-	ne.Data = logrus.Fields{}
+	ne.Data = make(logrus.Fields, len(e.Data)+len(fields))
 	for k, v := range fields {
 		ne.Data[k] = v
 	}
