@@ -20,7 +20,7 @@ import (
 type Hook struct {
 	writer    io.Writer
 	formatter logrus.Formatter
-	channel   chan []byte
+	channel   chan *logrus.Entry
 	stopChan  chan struct{}
 }
 
@@ -48,7 +48,7 @@ func NewWithChannelSize(w io.Writer, f logrus.Formatter, chanSize int) (logrus.H
 	hook := Hook{
 		writer:    w,
 		formatter: f,
-		channel:   make(chan []byte, chanSize),
+		channel:   make(chan *logrus.Entry, chanSize),
 		stopChan:  make(chan struct{}, 1),
 	}
 
@@ -62,11 +62,16 @@ func NewWithChannelSize(w io.Writer, f logrus.Formatter, chanSize int) (logrus.H
 func subWriter(h Hook) {
 	for {
 		select {
-		case data, ok := <-h.channel:
+		case e, ok := <-h.channel:
 			if !ok {
 				return
 			}
-			_, err := h.writer.Write(data)
+			data, err := h.formatter.Format(e)
+			if err != nil {
+				break
+				// PASS
+			}
+			_, err = h.writer.Write(data)
 			if err != nil {
 				// PASS
 			}
@@ -80,13 +85,9 @@ func subWriter(h Hook) {
 // Hook's formatter is used to format the entry into Logstash format
 // and Hook's writer is used to write the formatted entry to the Logstash instance.
 func (h Hook) Fire(e *logrus.Entry) error {
-	dataBytes, err := h.formatter.Format(e)
-	if err != nil {
-		return err
-	}
 	// write data into channel
-	h.channel <- dataBytes
-	return err
+	h.channel <- e
+	return nil
 }
 
 // Levels returns all logrus levels.
