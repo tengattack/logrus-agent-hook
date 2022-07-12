@@ -86,7 +86,9 @@ func subWriter(h Hook) {
 // and Hook's writer is used to write the formatted entry to the Logstash instance.
 func (h Hook) Fire(e *logrus.Entry) error {
 	// write data into channel
-	h.channel <- e
+	e2 := e.Dup()
+	e2.Message = e.Message
+	h.channel <- e2
 	return nil
 }
 
