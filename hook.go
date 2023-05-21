@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"sort"
 	"sync"
 
@@ -24,6 +26,10 @@ type Hook struct {
 	stopChan  chan struct{}
 }
 
+type Options struct {
+	ChannelSize int
+}
+
 const (
 	// TimeFormat is the default @timestamp format, add millisecounds to time.RFC3339
 	TimeFormat = "2006-01-02T15:04:05.999Z07:00"
@@ -31,12 +37,28 @@ const (
 
 // New returns a new logrus.Hook for Logstash.
 //
-// To create a new hook that sends logs to `tcp://logstash.corp.io:9999`:
+// To create a new hook that sends logs to dsn `tcp://logstash.corp.io:9999`:
 //
-// conn, _ := net.Dial("tcp", "logstash.corp.io:9999")
-// hook, _ := logrustash.New(conn, logrustash.DefaultFormatter())
-func New(w io.Writer, f logrus.Formatter) (logrus.Hook, func()) {
-	return NewWithChannelSize(w, f, 1024)
+// hook, _ := logrustash.New(dsn, logrustash.DefaultFormatter())
+func New(dsn string, f logrus.Formatter, opts ...Options) (logrus.Hook, func()) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		panic("invalid dsn")
+	}
+	var opt Options
+	if len(opts) > 0 {
+		// using the first one only
+		opt = opts[0]
+	}
+	if opt.ChannelSize <= 0 {
+		opt.ChannelSize = 1024
+	}
+	// TODO: Dial or Write error retry
+	conn, err := net.Dial(u.Scheme, u.Host)
+	if err != nil {
+		return nil, nil
+	}
+	return NewWithChannelSize(conn, f, opt.ChannelSize)
 }
 
 // NewWithChannelSize returns a new logrus.Hook with specified channel size

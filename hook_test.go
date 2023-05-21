@@ -17,36 +17,6 @@ func (f simpleFmter) Format(e *logrus.Entry) ([]byte, error) {
 	return []byte(fmt.Sprintf("msg: %#v", e.Message)), nil
 }
 
-func TestFire(t *testing.T) {
-	buffer := bytes.NewBuffer(nil)
-	h, close := logrusagent.New(buffer, simpleFmter{})
-	entry := &logrus.Entry{
-		Message: "my message",
-		Data:    logrus.Fields{},
-	}
-
-	err := h.Fire(entry)
-	if err != nil {
-		t.Error("expected Fire to not return error")
-	}
-
-	// sleep to wait for the goroutine to finish
-	time.Sleep(3 * time.Second)
-	expected := "msg: \"my message\""
-	if buffer.String() != expected {
-		t.Errorf("expected to see '%s' in '%s'", expected, buffer.String())
-	}
-
-	close()
-	time.Sleep(3 * time.Second)
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("should panic")
-		}
-	}()
-	h.Fire(entry)
-}
-
 func TestFireWithChannelSize(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	h, close := logrusagent.NewWithChannelSize(buffer, simpleFmter{}, 1024)
