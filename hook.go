@@ -54,7 +54,13 @@ func New(dsn string, f logrus.Formatter, opts ...Options) (logrus.Hook, func()) 
 		opt.ChannelSize = 1024
 	}
 	// TODO: Dial or Write error retry
-	conn, err := net.Dial(u.Scheme, u.Host)
+	var conn net.Conn
+	switch u.Scheme {
+	case "unix", "unixgram", "unixpacket":
+		conn, err = net.Dial(u.Scheme, u.Path)
+	default:
+		conn, err = net.Dial(u.Scheme, u.Host)
+	}
 	if err != nil {
 		return nil, nil
 	}
